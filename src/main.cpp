@@ -7,6 +7,7 @@
 #include "hitable_list.h"
 #include "material.h"
 #include "sphere.h"
+#include "moving_sphere.h"
 
 // trying with stb_image lib
 #define STB_IMAGE_ IMPLEMENTATION
@@ -19,7 +20,7 @@ vec3 color(const ray &r, hitable *world, int depth) {
     if (world->hit(r, 0.0001, 100000.0, rec)) {
         ray scattered;
         vec3 attenuation;
-        if (depth < 10 && rec.mat_ptr->scatter(r, rec, attenuation, scattered)) {
+        if (depth < 24 && rec.mat_ptr->scatter(r, rec, attenuation, scattered)) {
             return attenuation * color(scattered, world, depth + 1);
         } else {
             return vec3(0, 0, 0);
@@ -42,7 +43,8 @@ hitable *random_scene() {
             vec3 center(a + 0.9 * r(), 0.2, b + 0.9 * r());
             if ((center - vec3(4, 0.2, 0)).length() > 0.9) {
                 if (choose_mat < 0.8) {  // diffuse
-                    list[i++] = new sphere(center, 0.2, new lambertian(vec3(r() * r(), r() * r(), r() * r())));
+                    // list[i++] = new sphere(center, 0.2, new lambertian(vec3(r() * r(), r() * r(), r() * r())));
+                    list[i++] = new moving_sphere(center, center+vec3(0,0.5*r(),0), 0.0, 1.0, 0.2, new lambertian(vec3(r() * r(), r() * r(), r() * r())));
                 } else if (choose_mat < 0.95) {  // metal
                     list[i++] = new sphere(center, 0.2,
                                            new metal(vec3(0.5 * (1 + r()), 0.5 * (1 + r()), 0.5 * (1 + r())), 0.5 * r()));
@@ -59,8 +61,8 @@ hitable *random_scene() {
 }
 
 int main() {
-    int nx = 640;
-    int ny = 480;
+    int nx = 200;
+    int ny = 100;
     int ns = 10;
 
     // stb stuff
@@ -89,10 +91,10 @@ int main() {
     vec3 lookat(0, 0, 0);
     float dist_to_focus = 10.0;
     float aperture = 0.2;
-    camera cam(lookfrom, lookat, vec3(0, 1, 0), 20, float(nx) / float(ny), aperture, dist_to_focus);
+    camera cam(lookfrom, lookat, vec3(0, 1, 0), 20, float(nx) / float(ny), aperture, dist_to_focus, 0.0, 1.0);
     for (int j = ny - 1; j >= 0; j--) {
         for (int i = 0; i < nx; i++) {
-            std::cout << i << ":" << j << "\n";
+            // std::cout << i << ":" << j << "\n";
             vec3 col(0.0, 0.0, 0.0);
             for (int s = 0; s < ns; s++) {
                 float u = float(i + r()) / float(nx);
