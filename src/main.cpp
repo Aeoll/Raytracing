@@ -1,13 +1,16 @@
+#include <malloc.h>
 #include <math.h>
 #include <fstream>
 #include <iostream>
 #include <random>
+#include <thread>
+
 #include "camera.h"
 #include "float.h"
 #include "hitable_list.h"
 #include "material.h"
-#include "sphere.h"
 #include "moving_sphere.h"
+#include "sphere.h"
 
 // trying with stb_image lib
 #define STB_IMAGE_ IMPLEMENTATION
@@ -35,7 +38,8 @@ vec3 color(const ray &r, hitable *world, int depth) {
 hitable *random_scene() {
     int n = 500;
     hitable **list = new hitable *[n + 1];
-    list[0] = new sphere(vec3(0, -1000, 0), 1000, new lambertian(vec3(0.5, 0.5, 0.5)));
+    list[0] =
+        new sphere(vec3(0, -1000, 0), 1000, new lambertian(vec3(0.5, 0.5, 0.5)));
     int i = 1;
     for (int a = -11; a < 11; a++) {
         for (int b = -11; b < 11; b++) {
@@ -43,11 +47,16 @@ hitable *random_scene() {
             vec3 center(a + 0.9 * r(), 0.2, b + 0.9 * r());
             if ((center - vec3(4, 0.2, 0)).length() > 0.9) {
                 if (choose_mat < 0.8) {  // diffuse
-                    // list[i++] = new sphere(center, 0.2, new lambertian(vec3(r() * r(), r() * r(), r() * r())));
-                    list[i++] = new moving_sphere(center, center+vec3(0,0.5*r(),0), 0.0, 1.0, 0.2, new lambertian(vec3(r() * r(), r() * r(), r() * r())));
+                    // list[i++] = new sphere(center, 0.2, new lambertian(vec3(r() * r(),
+                    // r() * r(), r() * r())));
+                    list[i++] = new moving_sphere(
+                        center, center + vec3(0, 0.5 * r(), 0), 0.0, 1.0, 0.2,
+                        new lambertian(vec3(r() * r(), r() * r(), r() * r())));
                 } else if (choose_mat < 0.95) {  // metal
-                    list[i++] = new sphere(center, 0.2,
-                                           new metal(vec3(0.5 * (1 + r()), 0.5 * (1 + r()), 0.5 * (1 + r())), 0.5 * r()));
+                    list[i++] = new sphere(
+                        center, 0.2,
+                        new metal(vec3(0.5 * (1 + r()), 0.5 * (1 + r()), 0.5 * (1 + r())),
+                                  0.5 * r()));
                 } else {  // glass
                     list[i++] = new sphere(center, 0.2, new dielectric(1.5));
                 }
@@ -55,8 +64,10 @@ hitable *random_scene() {
         }
     }
     list[i++] = new sphere(vec3(0, 1, 0), 1.0, new dielectric(1.5));
-    list[i++] = new sphere(vec3(-4, 1, 0), 1.0, new lambertian(vec3(0.4, 0.2, 0.1)));
-    list[i++] = new sphere(vec3(4, 1, 0), 1.0, new metal(vec3(0.7, 0.6, 0.5), 0.0));
+    list[i++] =
+        new sphere(vec3(-4, 1, 0), 1.0, new lambertian(vec3(0.4, 0.2, 0.1)));
+    list[i++] =
+        new sphere(vec3(4, 1, 0), 1.0, new metal(vec3(0.7, 0.6, 0.5), 0.0));
     return new hitable_list(list, i);
 }
 
@@ -64,19 +75,12 @@ int main() {
     int nx = 200;
     int ny = 100;
     int ns = 10;
-
     // stb stuff
-    // int x, y, n;
-    // unsigned char *data = stbi_load("foo.png", &x, &y, &n, 0);
+    unsigned char *buffer = new unsigned char[nx * ny * 3];
+
     std::ofstream outfile;
     outfile.open("myfile.ppm", std::ios::out);
-    outfile << "P3\n"
-            << nx << " " << ny << "\n255\n";
-
-    vec3 lower_left_corner(-2.0, -1.0, -1.0);
-    vec3 horizontal(4.0, 0.0, 0.0);
-    vec3 vertical(0.0, 2.0, 0.0);
-    vec3 origin(0.0, 0.0, 0.0);
+    outfile << "P3\n" << nx << " " << ny << "\n255\n";
 
     hitable *list[5];
     list[0] = new sphere(vec3(0, 0, -1), 0.5, new lambertian(vec3(0.8, 0.3, 0.3)));
@@ -92,9 +96,26 @@ int main() {
     float dist_to_focus = 10.0;
     float aperture = 0.2;
     camera cam(lookfrom, lookat, vec3(0, 1, 0), 20, float(nx) / float(ny), aperture, dist_to_focus, 0.0, 1.0);
+
+    //   // try multithreading?
+    //   int mMaxThreads = 16;
+    //   std::thread mThreads[mMaxThreads];
+    //   for (int threadIndex = 0; threadIndex < mMaxThreads; ++threadIndex) {
+    //     mThreads[threadIndex] =
+    //         std::thread(&ray_tracer::put_pixel_with_thread, this, threadIndex);
+    //   }
+    //   for (int threadIndex = 0; threadIndex < mMaxThreads; ++threadIndex) {
+    //     if (mThreads[threadIndex].joinable()) {
+    //       mThreads[threadIndex].join();
+    //     }
+    //   }
+
+    // for (int col = int((threadIndex / mMaxThreads)*mImageWidth);
+    //     col < int(((threadIndex + 1) / mMaxThreads)*mImageWidth);
+    //     ++col {
+
     for (int j = ny - 1; j >= 0; j--) {
         for (int i = 0; i < nx; i++) {
-            // std::cout << i << ":" << j << "\n";
             vec3 col(0.0, 0.0, 0.0);
             for (int s = 0; s < ns; s++) {
                 float u = float(i + r()) / float(nx);
@@ -109,9 +130,17 @@ int main() {
             int ir = int(255.99 * col[0]);
             int ig = int(255.99 * col[1]);
             int ib = int(255.99 * col[2]);
-            // std::cout << ir << " " << ig << " " << ib << "\n";
-            outfile << ir << " " << ig << " " << ib << "\n";
+            outfile << ir << " " << ig << " " << ib << "\n" << std::endl;
+
+            int idx = (((ny - j) * nx) + i) * 3;
+            buffer[idx] = ir;
+            buffer[idx + 1] = ig;
+            buffer[idx + 2] = ib;
         }
+        std::cout << j << "\n";
     }
-    // stbi_write_png("foo_out.png", nx, ny, 3, data, 0);
+
+    if (!stbi_write_bmp("render.bmp", nx, ny, 3, buffer)) {
+        std::cout << "ERROR: could not write image";
+    }
 }

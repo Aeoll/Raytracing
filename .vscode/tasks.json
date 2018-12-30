@@ -8,7 +8,7 @@
                 "kind": "build",
                 "isDefault": true
             },
-            "command": ".\\build.bat"
+            "command": "make",
         },
         {
             "label": "Build & run C++ project",
@@ -17,7 +17,10 @@
                 "kind": "test",
                 "isDefault": true
             },
-            "command": ".\\build.bat && .\\bin\\main.exe"
+            "command": "make",
+            "args": [
+                "run"
+            ]
         }
     ]
 }
