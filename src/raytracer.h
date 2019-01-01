@@ -32,19 +32,21 @@ class raytracer {
         float aperture = 0.2;
         cam = camera(lookfrom, lookat, vec3(0, 1, 0), 20, float(width) / float(height), aperture, dist_to_focus, 0.0, 1.0);
 
-        // WHY WONT THIS WORK????
         buffer = new unsigned char[width * height * 3];
+        world = random_scene();
     }
 
     vec3 color(const ray &r, hitable *world, int depth);
     hitable *random_scene();
     void render();
-    void renderchunk();
+    void renderchunk(int threadIndex, int mMaxThreads);
+    void test(int threadIndex);
 
     int nx;
     int ny;
     int ns;
     unsigned char *buffer;
+    hitable *world;
     camera cam;
 };
 
@@ -60,8 +62,6 @@ hitable *raytracer::random_scene() {
             vec3 center(a + 0.9 * r(), 0.2, b + 0.9 * r());
             if ((center - vec3(4, 0.2, 0)).length() > 0.9) {
                 if (choose_mat < 0.8) {  // diffuse
-                    // list[i++] = new sphere(center, 0.2, new lambertian(vec3(r() * r(),
-                    // r() * r(), r() * r())));
                     list[i++] = new moving_sphere(
                         center, center + vec3(0, 0.5 * r(), 0), 0.0, 1.0, 0.2,
                         new lambertian(vec3(r() * r(), r() * r(), r() * r())));
@@ -101,53 +101,13 @@ vec3 raytracer::color(const ray &r, hitable *world, int depth) {
     }
 }
 
-// need to pass in args.. instance variables arent working???
-// void raytracer::renderchunk() {
-//     for (int j = ny - 1; j >= 0; j--) {
-//         for (int col = int((threadIndex / mMaxThreads)*mImageWidth); col < int(((threadIndex + 1) / mMaxThreads)*mImageWidth); ++col {
-//             vec3 col(0.0, 0.0, 0.0);
-//             for (int s = 0; s < ns; s++) {
-//                 float u = float(i + r()) / float(nx);
-//                 float v = float(j + r()) / float(ny);
-//                 ray r = cam.get_ray(u, v);
-//                 vec3 p = r.point_at_parameter(2.0);
-//                 col += color(r, world2, 0);
-//             }
-//             col /= float(ns);
-//             float degamma = 1.0 / 2.2;
-//             col = vec3(pow(col[0], degamma), pow(col[1], degamma), pow(col[2], degamma));
-//             int ir = int(255.99 * col[0]);
-//             int ig = int(255.99 * col[1]);
-//             int ib = int(255.99 * col[2]);
+//
+void raytracer::renderchunk(int threadIndex, int mMaxThreads) {
+    int start = int((float(threadIndex) / float(mMaxThreads)) * ny);
+    int end = int((float(threadIndex + 1) / float(mMaxThreads)) * ny);
 
-//             int idx = (((ny - j) * nx) + i) * 3;
-//             buffer2[idx] = ir;
-//             buffer2[idx + 1] = ig;
-//             buffer2[idx + 2] = ib;
-//         }
-//     }
-// }
-
-void raytracer::render() {
-    hitable *list2[1];
-    list2[0] = new sphere(vec3(0, 0, -1), 0.5, new lambertian(vec3(0.8, 0.3, 0.3)));
-    hitable *world2 = random_scene();
-
-    unsigned char *buffer2 = new unsigned char[nx * ny * 3];
-    
-    // try multithreading?
-    // int mMaxThreads = 16;
-    // std::thread mThreads[mMaxThreads];
-    // for (int threadIndex = 0; threadIndex < mMaxThreads; ++threadIndex) {
-    //     mThreads[threadIndex] = std::thread(&renderchunk, this, threadIndex);
-    // }
-    // for (int threadIndex = 0; threadIndex < mMaxThreads; ++threadIndex) {
-    //     if (mThreads[threadIndex].joinable()) {
-    //         mThreads[threadIndex].join();
-    //     }
-    // }
-
-    for (int j = ny - 1; j >= 0; j--) {
+    // multithreading row chunks
+    for (int j = end - 1; j >= start; j--) {
         for (int i = 0; i < nx; i++) {
             vec3 col(0.0, 0.0, 0.0);
             for (int s = 0; s < ns; s++) {
@@ -155,7 +115,7 @@ void raytracer::render() {
                 float v = float(j + r()) / float(ny);
                 ray r = cam.get_ray(u, v);
                 vec3 p = r.point_at_parameter(2.0);
-                col += color(r, world2, 0);
+                col += color(r, world, 0);
             }
             col /= float(ns);
             float degamma = 1.0 / 2.2;
@@ -165,14 +125,32 @@ void raytracer::render() {
             int ib = int(255.99 * col[2]);
 
             int idx = (((ny - j) * nx) + i) * 3;
-            buffer2[idx] = ir;
-            buffer2[idx + 1] = ig;
-            buffer2[idx + 2] = ib;
+            // modulo to prevent segfault... should fix properly..?
+            buffer[(idx)%(nx*ny*3)] = ir;
+            buffer[(idx + 1)%(nx*ny*3)] = ig;
+            buffer[(idx + 2)%(nx*ny*3)] = ib;
         }
-        std::cout << j << "\n";
+    }
+}
+
+void raytracer::test(int threadIndex) {
+    std::cout << threadIndex << std::endl;
+}
+
+void raytracer::render() {
+    // multithreaded
+    int mMaxThreads = std::min(32*4, ny);
+    std::thread mThreads[mMaxThreads];
+    for (int threadIndex = 0; threadIndex < mMaxThreads; ++threadIndex) {
+        mThreads[threadIndex] = std::thread(&raytracer::renderchunk, this, threadIndex, mMaxThreads);
+    }
+    for (int threadIndex = 0; threadIndex < mMaxThreads; ++threadIndex) {
+        if (mThreads[threadIndex].joinable()) {
+            mThreads[threadIndex].join();
+        }
     }
 
-    if (!stbi_write_bmp("render.bmp", nx, ny, 3, buffer2)) {
+    if (!stbi_write_bmp("render.bmp", nx, ny, 3, buffer)) {
         std::cout << "ERROR: could not write image";
     }
 }
