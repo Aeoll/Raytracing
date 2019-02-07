@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include <random>
+#include <vector>
 #include <thread>
 #include "camera.h"
 #include "float.h"
@@ -139,8 +140,9 @@ void raytracer::test(int threadIndex) {
 
 void raytracer::render() {
     // multithreaded
-    int mMaxThreads = std::min(32*4, ny);
-    std::thread mThreads[mMaxThreads];
+    const int mMaxThreads = std::min(32*4, ny);
+
+    std::vector<std::thread> mThreads(mMaxThreads);
     for (int threadIndex = 0; threadIndex < mMaxThreads; ++threadIndex) {
         mThreads[threadIndex] = std::thread(&raytracer::renderchunk, this, threadIndex, mMaxThreads);
     }
